@@ -1,0 +1,29 @@
+CREATE TABLE IF NOT EXISTS Commodity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    unit VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Butik (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    site_id VARCHAR(255),
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ButikCommodity (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    butik_id INTEGER NOT NULL,
+    commodity_id INTEGER NOT NULL,
+    fetch_id VARCHAR(255) NOT NULL,
+    image_url VARCHAR(511),
+    in_stock BOOLEAN NOT NULL DEFAULT false,
+    FOREIGN KEY (butik_id) REFERENCES Butik(id),
+    FOREIGN KEY (commodity_id) REFERENCES Commodity(id)
+);
+
+CREATE TABLE IF NOT EXISTS ButikCommodityRecord (
+    id INTEGER NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    member_price DECIMAL(10,2),
+    FOREIGN KEY (id) REFERENCES ButikCommodity(id)
+);
