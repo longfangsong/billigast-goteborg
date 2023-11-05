@@ -1,0 +1,4 @@
+[main]
+db_type = "Sqlite"
+db_path = "./main.db"
+trust_cert = false
