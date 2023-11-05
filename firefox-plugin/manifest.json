@@ -1,0 +1,44 @@
+{
+    "manifest_version": 2,
+    "name": "ButikSQLGenerator",
+    "version": "1.0",
+    "description": "Generate SQL for editing ButikCommodity",
+    "icons": {
+        "48": "icons/sqlgen-48.png"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://handlaprivatkund.ica.se/stores/*"
+            ],
+            "js": [
+                "ica.js"
+            ]
+        },
+        {
+            "matches": [
+                "https://www.willys.se/*"
+            ],
+            "js": [
+                "willys.js"
+            ]
+        },
+        {
+            "matches": [
+                "https://www.coop.se/*"
+            ],
+            "js": [
+                "coop.js"
+            ]
+        }
+    ],
+    "permissions": [
+        "storage",
+        "clipboardWrite"
+    ],
+    "browser_action": {
+        "default_icon": "icons/sqlgen-48.png",
+        "default_title": "ButikSQL Generator",
+        "default_popup": "popup/index.html"
+    }
+}
