@@ -1,0 +1,84 @@
+function throttle(func, delay) {
+    var prev = Date.now();
+    return function () {
+        var context = this;
+        var args = arguments;
+        var now = Date.now();
+        if (now - prev >= delay) {
+            func.apply(context, args);
+            prev = Date.now();
+        }
+    }
+}
+
+
+let commodity_selector = document.createElement("select");
+commodity_selector.id = "commodity-selector";
+commodity_selector.innerHTML = `
+{% for commodity in commodities %}
+<option value="{{ commodity.id }}">{{ commodity.name }}</option>
+{% endfor %}
+`;
+document.getElementById("products-page-breadcrumb").parentNode.insertBefore(commodity_selector, document.getElementById("products-page-breadcrumb"));
+
+let butik_selector = document.createElement("select");
+butik_selector.id = "butik-selector";
+butik_selector.style.marginTop = "30px";
+butik_selector.innerHTML = `
+{% for butik in butiks %}
+{% if butik.name is containing("ICA") %}
+<option value="{{ butik.id }}">{{ butik.name }}</option>
+{% endif %}
+{% endfor %}
+`;
+document.getElementById("main-header").appendChild(butik_selector);
+
+addCheckboxes();
+
+document.addEventListener("scroll", throttle(addCheckboxes, 1000));
+
+function addCheckboxes() {
+    let items = Array.from(document.querySelectorAll("a[href^=\"/stores\"][href*=\"products/\"]")).filter(item => item.parentElement.tagName.toLowerCase() === 'h3');
+    for (let item of items) {
+        let id = item.href.split("/").filter((item) => item !== "").pop();
+        let existing_checkbox = document.getElementById(`checkbox-${id}`);
+        if (existing_checkbox === null) {
+            let checkbox = document.createElement("input");
+            checkbox.id = `checkbox-${id}`;
+            checkbox.type = "checkbox";
+            checkbox.onchange = function () {
+                if (this.checked) {
+                    let commodity = document.getElementById("commodity-selector").value;
+                    let butik = document.getElementById("butik-selector").value;
+                    browser.storage.local.get('records').then(({ records }) => {
+                        try {
+                            records.push({
+                                commodity,
+                                butik,
+                                fetch_id: id,
+                            });
+                            browser.storage.local.set({ records });
+                        } catch (e) {
+                            browser.storage.local.set({
+                                records: [{
+                                    commodity,
+                                    butik,
+                                    fetch_id: id,
+                                }]
+                            });
+                        }
+                    }, (error) => {
+                        browser.storage.local.set({
+                            records: [{
+                                commodity,
+                                butik,
+                                fetch_id: id,
+                            }]
+                        });
+                    });
+                }
+            };
+            item.parentNode.insertBefore(checkbox, item);
+        }
+    }
+}

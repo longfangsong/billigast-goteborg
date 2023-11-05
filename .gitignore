@@ -1,0 +1,8 @@
+/target
+*.db-shm
+*.db-wal
+.DS_Store
+public
+firefox-plugin/ica.js
+firefox-plugin/willys.js
+firefox-plugin/coop.js
