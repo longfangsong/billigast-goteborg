@@ -3,6 +3,7 @@ use std::mem;
 use super::{parse_unit_price, CrawlResult, CrawlTask, StoreCrawler};
 use anyhow::Result;
 use async_trait::async_trait;
+use itertools::Itertools;
 use reqwest::{header::USER_AGENT, Client};
 use serde_json::json;
 use tokio::sync::mpsc;
@@ -31,8 +32,9 @@ impl StoreCrawler for CoopCrawler {
             .await?;
         let body: serde_json::Value = response.json().await?;
         let product = &body["results"]["items"][0].as_object().unwrap();
+
         let normal_price = product["piecePrice"].as_f64().unwrap();
-        let member_price = product["promotionPrice"].as_f64();
+        let member_price = product.get("promotionPrice").and_then(|it| it.as_f64());
         let current_comparative_price = product["comparativePrice"].as_f64().unwrap();
         let (normal_unit_price, member_unit_price) = if let Some(member_price) = member_price {
             let amount = member_price / current_comparative_price;
@@ -45,6 +47,7 @@ impl StoreCrawler for CoopCrawler {
         let price = parse_unit_price(&unit_price).unwrap();
         let member_unit_price = member_unit_price.map(|it| format!("{:.2}", it));
         let member_price = member_unit_price.map(|it| parse_unit_price(&it).unwrap());
+
         Ok(CrawlResult {
             id: task.id,
             price,
@@ -61,7 +64,7 @@ impl StoreCrawler for CoopCrawler {
             let mut tasks = Vec::new();
             let mut fetch_ids = Vec::new();
             while let Some(mut task) = input_channel.recv().await {
-                fetch_ids.push(mem::take(&mut task.fetch_id));
+                fetch_ids.push(task.fetch_id.clone());
                 tasks.push(task);
             }
             let payloads_str = serde_json::to_string(&fetch_ids).unwrap();
@@ -69,6 +72,7 @@ impl StoreCrawler for CoopCrawler {
             if tasks.len() == 0 {
                 return;
             }
+            tasks.sort_unstable_by_key(|it| it.fetch_id.clone());
             let client = Client::new();
             let url = format!("https://external.api.coop.se/personalization/search/entities/by-id?api-version=v1&store={}&groups=CUSTOMER_PRIVATE&direct=false", tasks[0].butik_id.clone().unwrap());
             let response = client
@@ -91,10 +95,10 @@ impl StoreCrawler for CoopCrawler {
                 .as_array()
                 .unwrap()
                 .into_iter()
-                .zip(tasks.into_iter())
-                .map(|(product, task)| {
+                .map(|product| {
+                    let fetch_id = product["id"].as_str().unwrap().to_string();
                     let normal_price = product["piecePrice"].as_f64().unwrap();
-                    let member_price = product["promotionPrice"].as_f64();
+                    let member_price = product.get("promotionPrice").and_then(|it| it.as_f64());
                     let current_comparative_price = product["comparativePrice"].as_f64().unwrap();
                     let (normal_unit_price, member_unit_price) =
                         if let Some(member_price) = member_price {
@@ -108,14 +112,17 @@ impl StoreCrawler for CoopCrawler {
                     let price = parse_unit_price(&unit_price).unwrap();
                     let member_unit_price = member_unit_price.map(|it| format!("{:.2}", it));
                     let member_price = member_unit_price.map(|it| parse_unit_price(&it).unwrap());
-                    Ok(CrawlResult {
-                        id: task.id,
-                        price,
-                        member_price,
-                    })
+                    (fetch_id, price, member_price)
+                })
+                .sorted_by_key(|it| it.0.clone())
+                .zip(tasks.into_iter())
+                .map(|((_, price, member_price), task)| CrawlResult {
+                    id: task.id,
+                    price,
+                    member_price,
                 });
             for item in items {
-                tx.send(item).await.unwrap();
+                tx.send(Ok(item)).await.unwrap();
             }
         });
         rx
@@ -127,13 +134,12 @@ mod tests {
     use super::*;
     #[tokio::test]
     async fn test_crawl_price() {
-        let payload = "8711327343573";
         let crawler = super::CoopCrawler;
         let task = CrawlTask {
             id: 1,
             butik_name: "coop".to_string(),
             butik_id: Some("252600".to_string()),
-            fetch_id: payload.to_string(),
+            fetch_id: "7310865078216".to_string(),
         };
         let result = crawler.crawl_price(task).await.unwrap();
         println!("{} kronor and {} ore", result.price.0, result.price.1);
@@ -152,14 +158,14 @@ mod tests {
             id: 1,
             butik_id: Some("252600".to_string()),
             butik_name: "coop".to_string(),
-            fetch_id: "8711327343573".to_string(),
+            fetch_id: "7310865078216".to_string(),
         };
         tx.send(task).await.unwrap();
         let task = CrawlTask {
             id: 2,
             butik_id: Some("252600".to_string()),
             butik_name: "coop".to_string(),
-            fetch_id: "7312331808211".to_string(),
+            fetch_id: "7310865078216".to_string(),
         };
         tx.send(task).await.unwrap();
         drop(tx);
